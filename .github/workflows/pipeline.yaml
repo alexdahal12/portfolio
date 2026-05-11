@@ -1,54 +1,45 @@
-name: Portfolio CI/CD
+name: "Deploy to Server"
 
 on:
   push:
-    branches:
-      - main
+      branches:
+        - main
 
 jobs:
-
-  build-and-deploy:
-
+  deploy:
     runs-on: ubuntu-latest
+    env:
+      SERVER_IP: ${{ vars.SERVER_IP }}
 
     steps:
+      - uses: actions/checkout@v3
 
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@master
+      - name: "Build Docker Image"
+        run: |
+          docker login -u alexdahal12 -p $DOCKERHUB_PAT
+          docker build -t alexdahal12/mywebapp .
+          docker push alexdahal12/mywebapp
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          DOCKERHUB_PAT: ${{ secrets.DOCKERHUB_PAT }}
 
-      - name: Login DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: "Configure SSH"
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+          touch ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      
+      - name: "Put SSH Key in Docker file for Server Access"
+        run: |
+          touch pem.pem
+          echo $EC2_SSH_KEY | base64 -d > pem.pem && chmod 400 pem.pem
+          ssh-keygen -R $SERVER_IP
+        env: 
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
 
-      - name: Build Docker Image
-        run: docker build -t YOUR_DOCKER_USERNAME/portfolio .
-
-      - name: Push Docker Image
-        run: docker push YOUR_DOCKER_USERNAME/portfolio
-
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@master
-
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
-
-          script: |
-
-            docker stop portfolio || true
-
-            docker rm portfolio || true
-
-            docker pull YOUR_DOCKER_USERNAME/portfolio
-
-            docker run -d -p 80:80 \
-            --name portfolio \
-            YOUR_DOCKER_USERNAME/portfolio
+      - name: "Docker Pull and Restart Docker"
+        run: |
+          ssh -t ubuntu@$SERVER_IP -i pem.pem 'docker pull alexdahal12/portfolio '
+          ssh -t ubuntu@$SERVER_IP -i pem.pem 'docker stop portfolio && docker rm portfolio'
+          ssh -t ubuntu@$SERVER_IP -i pem.pem 'docker run --name portfolio -p 8080:80 -d alexdahal12/portfolio'
