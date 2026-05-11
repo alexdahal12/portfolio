@@ -1,3 +1,3 @@
-FROM nginx
+FROM nginx:stable-trixie
 COPY index.html /usr/share/nginx/html/index.html
 EXPOSE 80
