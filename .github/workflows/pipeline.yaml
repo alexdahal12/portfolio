@@ -42,9 +42,8 @@ jobs:
 
       - name: Setup SSH Key
         run: |
-          echo "$SSH_KEY64" | base64 -d > pem.pem
-          chmod 400 pem.pem
-          ssh-keygen -R $SERVER_IP || true
+          echo "$SSH_KEY64" | base64 -d > pem.pem && chmod 400 pem.pem
+          ssh-keygen -R $SERVER_IP
         env:
           SSH_KEY64: ${{ secrets.SSH_KEY64 }}
 
