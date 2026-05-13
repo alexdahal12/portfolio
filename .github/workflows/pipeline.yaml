@@ -13,6 +13,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+<<<<<<< HEAD
         with:
           fetch-depth: 0 
 
@@ -51,3 +52,35 @@ jobs:
           ssh -t ubuntu@$SERVER_IP -i pem.pem 'docker pull alexdahal12/mywebsite'
           ssh -t ubuntu@$SERVER_IP -i pem.pem 'docker stop mynginx && docker rm mynginx'
           ssh -t ubuntu@$SERVER_IP -i pem.pem 'docker run --name mynginx -p 80:80 -d alexdahal12/mywebsite'
+=======
+
+      - name: "Build Docker Image"
+        run: |
+          docker login -u alexdahal12 -p $DOCKERHUB_PAT
+          docker build -t alexdahal12/mywebapp .
+          docker push alexdahal12/mywebapp
+        env:
+          DOCKERHUB_PAT: ${{ secrets.DOCKERHUB_PAT }}
+
+      - name: "Configure SSH"
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+          touch ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      
+      - name: "Put SSH Key in Docker file for Server Access"
+        run: |
+          touch pem.pem
+          echo $EC2_SSH_KEY | base64 -d > pem.pem && chmod 400 pem.pem
+          ssh-keygen -R $SERVER_IP
+        env: 
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: "Docker Pull and Restart Docker"
+        run: |
+          ssh -t ubuntu@$SERVER_IP -i pem.pem 'docker pull alexdahal12/portfolio '
+          ssh -t ubuntu@$SERVER_IP -i pem.pem 'docker stop portfolio && docker rm portfolio'
+          ssh -t ubuntu@$SERVER_IP -i pem.pem 'docker run --name portfolio -p 8080:80 -d alexdahal12/portfolio'
+>>>>>>> d5a2d8859cbd01abc0aa195d6c8e24c8fd92b091
